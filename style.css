@@ -845,7 +845,7 @@ canvas#scratchCanvas {
   max-width: 42ch;
 }
 .closing-names {
-  font-family: 'Great Vibes', cursive;
+  font-family: 'Luxurious Script', cursive;
   font-size: clamp(2rem, 7vw, 3rem);
   color: var(--gold-light);
   margin: var(--space-3) 0;
