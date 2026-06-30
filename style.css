@@ -119,7 +119,37 @@ body::before {
   pointer-events: none;
   transform: scale(1.06);
 }
+.om-symbol,
+.tamil-om{
+    font-family:
+    "Noto Sans Tamil",
+    "Latha",
+    "Vijaya",
+    serif;
 
+    font-size:72px;
+    color:#d4af37;
+
+    text-shadow:
+        0 0 10px rgba(212,175,55,.6),
+        0 0 25px rgba(212,175,55,.4),
+        0 0 45px rgba(212,175,55,.2);
+
+    display:inline-block;
+
+    animation:
+        glow 3s ease-in-out infinite,
+        floatOm 5s ease-in-out infinite;
+}
+
+@keyframes floatOm{
+    0%,100%{
+        transform:translateY(0);
+    }
+    50%{
+        transform:translateY(-8px);
+    }
+}
 #entranceParticles {
   position: absolute;
   inset: 0;
