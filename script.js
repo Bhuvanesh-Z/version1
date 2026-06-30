@@ -1,392 +1,589 @@
-/* =========================================================================
-   PREMIUM ENGAGEMENT INVITATION — SCRIPT
-   Saranya & Arivazhagan | Vanilla ES6 | No Dependencies
-   ========================================================================= */
+/* ═══════════════════════════════════════════════════════
+   SARANYA & ARIVAZHAGAN — ENGAGEMENT INVITATION
+   script.js  |  All interactive & animation logic
+   Cleaned up: no duplicate functions/listeners, debounced
+   resize handling, cached DOM lookups, animations pause
+   when the tab is hidden, panels cleaned up safely.
+   ═══════════════════════════════════════════════════════
 
-(() => {
-  'use strict';
+   ── MUSIC CONFIGURATION ──────────────────────────────
+   Replace the path below with your audio file, drop the
+   .mp3 into the project root (or /music/) and update:
+     const MUSIC_URL = "neethanae.mp3";
+   ──────────────────────────────────────────────────── */
+const MUSIC_URL = 'neethanae.mp3';
 
-  /* -----------------------------------------------------------------------
-     CONFIG
-     --------------------------------------------------------------------- */
-  const CONFIG = {
-    eventDate: new Date('2026-07-12T18:00:00'), // 12 July 2026, 6:00 PM
-    particleCount: window.innerWidth < 600 ? 36 : 70,
-    petalIntervalMs: 900,
-    reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+/* ── Small shared utility: debounce ── */
+function debounce(fn, wait = 150) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
   };
+}
 
-  /* -----------------------------------------------------------------------
-     UTILITIES
-     --------------------------------------------------------------------- */
-  const $ = (sel, ctx = document) => ctx.querySelector(sel);
-  const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
-  const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
-  const rand = (min, max) => Math.random() * (max - min) + min;
+const prefersReducedMotion =
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* -----------------------------------------------------------------------
-     MODULE: TAP TO OPEN GATE
-     --------------------------------------------------------------------- */
-  const Gate = (() => {
-    const gateEl = $('#gate');
-    const tapBtn = $('#tapToOpen');
-    const main = $('#main');
-    const musicToggle = $('#musicToggle');
+/* ══════════════════════════════════════════════════════
+   1. ENTRANCE — GOLDEN SPARK PARTICLES
+══════════════════════════════════════════════════════ */
+(function initEntranceSparks() {
+  const canvas = document.getElementById('entranceParticles');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, sparks = [];
+  let burstIntervalId = null;
+  let rafId = null;
 
-    function open() {
-      AudioPlayer.play();
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', debounce(resize, 150), { passive: true });
 
-      gateEl.classList.add('is-closing');
-      main.hidden = false;
-
-      window.requestAnimationFrame(() => {
-        document.documentElement.style.overflow = '';
-        document.body.style.overflow = '';
-      });
-
-      setTimeout(() => {
-        gateEl.setAttribute('hidden', '');
-        musicToggle.classList.add('is-visible');
-        Reveal.refresh();
-      }, 1050);
-    }
-
-    function init() {
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-
-      tapBtn.addEventListener('click', open, { once: true });
-      tapBtn.addEventListener(
-        'touchend',
-        (e) => {
-          e.preventDefault();
-          open();
-        },
-        { once: true, passive: false }
-      );
-    }
-
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: AUDIO PLAYER
-     --------------------------------------------------------------------- */
-  const AudioPlayer = (() => {
-    const audio = $('#bgMusic');
-    const toggleBtn = $('#musicToggle');
-    let isPlaying = false;
-
-    function play() {
-      audio
-        .play()
-        .then(() => {
-          isPlaying = true;
-          toggleBtn.classList.remove('is-paused');
-          toggleBtn.setAttribute('aria-pressed', 'true');
-        })
-        .catch(() => {
-          isPlaying = false;
-          toggleBtn.classList.add('is-paused');
-          toggleBtn.setAttribute('aria-pressed', 'false');
-        });
-    }
-
-    function pause() {
-      audio.pause();
-      isPlaying = false;
-      toggleBtn.classList.add('is-paused');
-      toggleBtn.setAttribute('aria-pressed', 'false');
-    }
-
-    function toggle() {
-      isPlaying ? pause() : play();
-    }
-
-    function init() {
-      toggleBtn.addEventListener('click', toggle);
-    }
-
-    return { init, play, pause, toggle };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: AMBIENT PARTICLES (CANVAS — GOLDEN DUST)
-     --------------------------------------------------------------------- */
-  const Particles = (() => {
-    const canvas = $('#particleCanvas');
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    let width, height, rafId;
-
-    function resize() {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    }
-
-    function createParticle() {
-      return {
-        x: rand(0, width),
-        y: rand(0, height),
-        r: rand(0.6, 2.2),
-        baseAlpha: rand(0.15, 0.6),
-        speedY: rand(-0.12, -0.4),
-        speedX: rand(-0.08, 0.08),
-        twinkleSpeed: rand(0.01, 0.03),
-        twinklePhase: rand(0, Math.PI * 2)
-      };
-    }
-
-    function init() {
-      resize();
-      particles = Array.from({ length: CONFIG.particleCount }, createParticle);
-      window.addEventListener('resize', resize, { passive: true });
-      if (!CONFIG.reducedMotion) loop();
-    }
-
-    function loop() {
-      ctx.clearRect(0, 0, width, height);
-
-      for (const p of particles) {
-        p.y += p.speedY;
-        p.x += p.speedX;
-        p.twinklePhase += p.twinkleSpeed;
-
-        if (p.y < -10) {
-          p.y = height + 10;
-          p.x = rand(0, width);
-        }
-        if (p.x < -10) p.x = width + 10;
-        if (p.x > width + 10) p.x = -10;
-
-        const alpha = p.baseAlpha * (0.5 + 0.5 * Math.sin(p.twinklePhase));
-
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(243, 210, 139, ${alpha.toFixed(3)})`;
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      rafId = requestAnimationFrame(loop);
-    }
-
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: FLOATING PETALS (DOM-BASED, LIGHTWEIGHT)
-     --------------------------------------------------------------------- */
-  const Petals = (() => {
-    const layer = $('#petalLayer');
-    let timerId;
-
-    function spawn() {
-      if (document.hidden) return;
-
-      const petal = document.createElement('span');
-      petal.className = 'petal';
-
-      const left = rand(0, 100);
-      const duration = rand(9, 16);
-      const drift = rand(-80, 80);
-      const size = rand(8, 16);
-      const delay = rand(0, 0.6);
-
-      petal.style.left = `${left}vw`;
-      petal.style.width = `${size}px`;
-      petal.style.height = `${size}px`;
-      petal.style.setProperty('--drift', `${drift}px`);
-      petal.style.animationDuration = `${duration}s`;
-      petal.style.animationDelay = `${delay}s`;
-
-      layer.appendChild(petal);
-
-      setTimeout(() => petal.remove(), (duration + delay) * 1000 + 200);
-    }
-
-    function init() {
-      if (CONFIG.reducedMotion) return;
-      spawn();
-      timerId = setInterval(spawn, CONFIG.petalIntervalMs);
-    }
-
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: GATE PARTICLES (SMALL BURST INSIDE TAP-TO-OPEN SCREEN)
-     --------------------------------------------------------------------- */
-  const GateParticles = (() => {
-    const container = $('#gateParticles');
-
-    function init() {
-      if (CONFIG.reducedMotion) return;
-      const count = window.innerWidth < 600 ? 24 : 42;
-
-      for (let i = 0; i < count; i++) {
-        const dot = document.createElement('span');
-        const size = rand(2, 5);
-        const left = rand(0, 100);
-        const top = rand(0, 100);
-        const duration = rand(4, 9);
-        const delay = rand(0, 5);
-
-        dot.style.position = 'absolute';
-        dot.style.left = `${left}%`;
-        dot.style.top = `${top}%`;
-        dot.style.width = `${size}px`;
-        dot.style.height = `${size}px`;
-        dot.style.borderRadius = '50%';
-        dot.style.background = 'rgba(243, 210, 139, 0.6)';
-        dot.style.boxShadow = '0 0 6px rgba(243,210,139,0.8)';
-        dot.style.opacity = '0';
-        dot.style.animation = `gateDotFloat ${duration}s ease-in-out ${delay}s infinite`;
-
-        container.appendChild(dot);
-      }
-
-      if (!document.getElementById('gateDotKeyframes')) {
-        const style = document.createElement('style');
-        style.id = 'gateDotKeyframes';
-        style.textContent = `
-          @keyframes gateDotFloat {
-            0%   { opacity: 0; transform: translateY(0) scale(0.6); }
-            20%  { opacity: 1; }
-            80%  { opacity: 0.8; }
-            100% { opacity: 0; transform: translateY(-60px) scale(1); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    }
-
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: COUNTDOWN TIMER (NO FLICKER, RAF-SYNCED)
-     --------------------------------------------------------------------- */
-  const Countdown = (() => {
-    const elDays = $('#cdDays');
-    const elHours = $('#cdHours');
-    const elMinutes = $('#cdMinutes');
-    const elSeconds = $('#cdSeconds');
-    let lastSecond = -1;
-    let rafId;
-
-    function tick() {
-      const now = Date.now();
-      const diff = Math.max(0, CONFIG.eventDate.getTime() - now);
-      const totalSeconds = Math.floor(diff / 1000);
-
-      if (totalSeconds !== lastSecond) {
-        lastSecond = totalSeconds;
-
-        const days = Math.floor(totalSeconds / 86400);
-        const hours = Math.floor((totalSeconds % 86400) / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-
-        elDays.textContent = pad2(days);
-        elHours.textContent = pad2(hours);
-        elMinutes.textContent = pad2(minutes);
-        elSeconds.textContent = pad2(seconds);
-      }
-
-      rafId = requestAnimationFrame(tick);
-    }
-
-    function init() {
-      tick();
-    }
-
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: SCROLL REVEAL (INTERSECTION OBSERVER)
-     --------------------------------------------------------------------- */
-  const Reveal = (() => {
-    let observer;
-
-    function applyDelays() {
-      $$('[data-reveal]').forEach((el) => {
-        const delay = el.getAttribute('data-delay') || 0;
-        el.style.setProperty('--reveal-delay', delay);
+  function spawnBurst(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 2.5;
+      sparks.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1.2,
+        life: 1,
+        decay: 0.008 + Math.random() * 0.012,
+        size: 1 + Math.random() * 3,
+        hue: 38 + Math.random() * 20 // gold range
       });
     }
+  }
 
-    function onIntersect(entries) {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      });
+  // Initial burst from center, then periodic ambient sparks
+  const startTimeout = setTimeout(() => {
+    spawnBurst(W / 2, H / 2, 80);
+    burstIntervalId = setInterval(() => {
+      const cx = W * 0.2 + Math.random() * W * 0.6;
+      const cy = H * 0.2 + Math.random() * H * 0.5;
+      spawnBurst(cx, cy, 6);
+    }, 600);
+  }, 100);
+
+  function tick() {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vy += 0.04; // gravity
+      s.vx *= 0.99;
+      s.life -= s.decay;
+      if (s.life <= 0) { sparks.splice(i, 1); continue; }
+
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * s.life, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${s.hue}, 85%, 65%, ${s.life})`;
+      ctx.fill();
+
+      // Tail trail
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.vx * 3, s.y - s.vy * 3);
+      ctx.strokeStyle = `hsla(${s.hue}, 85%, 70%, ${s.life * 0.5})`;
+      ctx.lineWidth = s.size * 0.5 * s.life;
+      ctx.stroke();
     }
+    rafId = requestAnimationFrame(tick);
+  }
+  rafId = requestAnimationFrame(tick);
 
-    function init() {
-      applyDelays();
+  // Stop the loop once the entrance has fully transitioned away —
+  // avoids a permanent rAF + canvas clear running for the whole visit.
+  const entrance = document.getElementById('entrance');
+  if (entrance) {
+    entrance.addEventListener('transitionend', (e) => {
+      if (e.target !== entrance) return;
+      cancelAnimationFrame(rafId);
+      clearInterval(burstIntervalId);
+      clearTimeout(startTimeout);
+    }, { once: true });
+  }
+})();
 
-      if (!('IntersectionObserver' in window)) {
-        $$('[data-reveal]').forEach((el) => el.classList.add('is-visible'));
-        return;
-      }
+/* ══════════════════════════════════════════════════════
+   2. BACKGROUND CANVAS — bokeh, light rays, hearts
+══════════════════════════════════════════════════════ */
+(function initBgCanvas() {
+  const canvas = document.getElementById('bgCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  let bokeh = [], rays = [], hearts = [];
+  let active = false;
+  let isPageVisible = !document.hidden;
 
-      observer = new IntersectionObserver(onIntersect, {
-        threshold: 0.18,
-        rootMargin: '0px 0px -60px 0px'
-      });
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    if (active) buildBokeh();
+  }
+  resize();
+  window.addEventListener('resize', debounce(resize, 150), { passive: true });
 
-      $$('[data-reveal]').forEach((el) => observer.observe(el));
-    }
-
-    function refresh() {
-      // Re-trigger observation for elements already in viewport on open
-      $$('[data-reveal]').forEach((el) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) {
-          el.classList.add('is-visible');
-          if (observer) observer.unobserve(el);
-        }
-      });
-    }
-
-    return { init, refresh };
-  })();
-
-  /* -----------------------------------------------------------------------
-     MODULE: SMOOTH ANCHOR SCROLL
-     --------------------------------------------------------------------- */
-  const SmoothAnchors = (() => {
-    function init() {
-      $$('a[href^="#"]').forEach((link) => {
-        link.addEventListener('click', (e) => {
-          const targetId = link.getAttribute('href');
-          if (targetId.length <= 1) return;
-          const target = $(targetId);
-          if (!target) return;
-
-          e.preventDefault();
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-    }
-    return { init };
-  })();
-
-  /* -----------------------------------------------------------------------
-     INIT — APP BOOTSTRAP
-     --------------------------------------------------------------------- */
-  document.addEventListener('DOMContentLoaded', () => {
-    Gate.init();
-    AudioPlayer.init();
-    Particles.init();
-    Petals.init();
-    GateParticles.init();
-    Countdown.init();
-    Reveal.init();
-    SmoothAnchors.init();
+  // Pause the animation loop while the tab is hidden to save battery/CPU.
+  document.addEventListener('visibilitychange', () => {
+    isPageVisible = !document.hidden;
   });
 
+  function buildBokeh() {
+    bokeh = [];
+    const count = Math.min(30, Math.floor((W * H) / 25000));
+    for (let i = 0; i < count; i++) {
+      bokeh.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 20 + Math.random() * 80,
+        a: Math.random() * Math.PI * 2,
+        speed: 0.0003 + Math.random() * 0.0005,
+        alpha: 0.03 + Math.random() * 0.07,
+        hue: Math.random() < 0.5 ? 38 : 340 // gold or rose
+      });
+    }
+    rays = [];
+    for (let i = 0; i < 5; i++) {
+      rays.push({
+        x: W * (0.2 + i * 0.15),
+        angle: -Math.PI / 2 + (Math.random() - 0.5) * 0.5,
+        alpha: 0.03 + Math.random() * 0.05,
+        width: 80 + Math.random() * 160,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    hearts = [];
+    for (let i = 0; i < 8; i++) {
+      hearts.push({
+        x: Math.random() * W,
+        y: H + 40,
+        size: 8 + Math.random() * 16,
+        speed: 0.3 + Math.random() * 0.5,
+        drift: (Math.random() - 0.5) * 0.5,
+        alpha: 0.5 + Math.random() * 0.4,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function drawHeart(c, x, y, size) {
+    c.save();
+    c.translate(x, y);
+    c.beginPath();
+    c.moveTo(0, -size * 0.3);
+    c.bezierCurveTo(size * 0.5, -size * 0.9, size * 1.0, size * 0.1, 0, size * 0.7);
+    c.bezierCurveTo(-size * 1.0, size * 0.1, -size * 0.5, -size * 0.9, 0, -size * 0.3);
+    c.closePath();
+    c.restore();
+  }
+
+  let t = 0;
+  function tick() {
+    requestAnimationFrame(tick);
+    if (!active || !isPageVisible) return;
+
+    ctx.clearRect(0, 0, W, H);
+    t += 0.016;
+
+    // Bokeh circles
+    for (const b of bokeh) {
+      b.a += b.speed;
+      const px = b.x + Math.cos(b.a) * 30;
+      const py = b.y + Math.sin(b.a * 0.7) * 20;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, b.r);
+      grad.addColorStop(0, `hsla(${b.hue}, 70%, 70%, ${b.alpha})`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(px - b.r, py - b.r, b.r * 2, b.r * 2);
+    }
+
+    // Light rays from top
+    for (const ray of rays) {
+      const pulse = Math.sin(t * 0.4 + ray.phase) * 0.015;
+      ctx.save();
+      ctx.translate(ray.x, 0);
+      ctx.rotate(ray.angle);
+      const rayGrad = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+      rayGrad.addColorStop(0, `rgba(200,169,110,${ray.alpha + pulse})`);
+      rayGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = rayGrad;
+      ctx.fillRect(-ray.width / 2, 0, ray.width, H * 0.7);
+      ctx.restore();
+    }
+
+    // Floating hearts
+    for (const h of hearts) {
+      h.y -= h.speed;
+      h.x += Math.sin(t * 0.8 + h.phase) * h.drift;
+      if (h.y < -60) {
+        h.y = H + 40;
+        h.x = Math.random() * W;
+      }
+      ctx.save();
+      ctx.globalAlpha = h.alpha * Math.abs(Math.sin(t * 0.5 + h.phase));
+      drawHeart(ctx, h.x, h.y, h.size);
+      const hGrad = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.size);
+      hGrad.addColorStop(0, '#F0B8C8');
+      hGrad.addColorStop(1, '#D4738A');
+      ctx.fillStyle = hGrad;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  requestAnimationFrame(tick);
+
+  // Exposed activation hook, called once the invitation opens.
+  window.activateBgCanvas = function activateBgCanvas() {
+    active = true;
+    buildBokeh();
+    canvas.classList.add('active');
+  };
+})();
+
+/* ══════════════════════════════════════════════════════
+   3. ENTRANCE — open invitation
+══════════════════════════════════════════════════════ */
+function openInvitation() {
+  if (openInvitation._called) return; // prevent double-fire
+  openInvitation._called = true;
+
+  const entrance = document.getElementById('entrance');
+  const main = document.getElementById('main');
+
+  entrance.classList.add('hide');
+  main.classList.add('show');
+
+  // Stagger background activations so the entrance fade feels smooth
+  // before heavier canvas/observer work begins.
+  setTimeout(() => {
+    if (window.activateBgCanvas) window.activateBgCanvas();
+    spawnPetals();
+    startCountdown();
+    initScratch();
+    observeFadeIns();
+  }, 400);
+
+  // Music
+  const music = document.getElementById('bgMusic');
+  music.src = MUSIC_URL;
+  setTimeout(() => { music.play().catch(() => {}); }, 900);
+}
+
+(function setupEntranceTriggers() {
+  const entrance = document.getElementById('entrance');
+  const tapBtn = document.getElementById('tapBtn');
+  if (!entrance) return;
+
+  tapBtn?.addEventListener('click', openInvitation);
+  entrance.addEventListener('click', (e) => {
+    // Avoid double-triggering when the button itself was clicked
+    if (e.target === tapBtn) return;
+    openInvitation();
+  });
+  entrance.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openInvitation();
+    }
+  });
+})();
+
+/* ══════════════════════════════════════════════════════
+   4. FLOATING PETALS
+══════════════════════════════════════════════════════ */
+function spawnPetals() {
+  const container = document.getElementById('petalsContainer');
+  if (!container) return;
+  const emojis = ['🌸', '🌺', '✿', '❀', '🌼', '🌹', '🪷'];
+  const MAX_PETALS = 20;
+
+  function addPetal() {
+    const p = document.createElement('div');
+    p.className = 'petal';
+    p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.animationDuration = (9 + Math.random() * 12) + 's';
+    p.style.animationDelay = (Math.random() * 4) + 's';
+    p.style.fontSize = (0.8 + Math.random() * 1.0) + 'rem';
+    p.style.setProperty('--drift', (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 60) + 'px');
+    container.appendChild(p);
+    // Recycle the petal after its animation completes to avoid DOM bloat.
+    setTimeout(() => { p.remove(); addPetal(); }, (22 + Math.random() * 8) * 1000);
+  }
+
+  for (let i = 0; i < MAX_PETALS; i++) {
+    setTimeout(addPetal, i * 280);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   5. COUNTDOWN — stable, flicker-free flip animation
+   Architecture:
+   • One setInterval at exactly 1000ms drives the time math.
+   • DOM panels are added/removed only when a value changes.
+   • requestAnimationFrame is intentionally NOT used here —
+     a steady 1s interval avoids drift in displayed values.
+══════════════════════════════════════════════════════ */
+const TARGET_DATE = new Date('2026-07-12T18:00:00');
+
+// Track currently displayed values to avoid unnecessary flips.
+const cdCurrent = { days: -1, hours: -1, mins: -1, secs: -1 };
+const cdFlipping = { days: false, hours: false, mins: false, secs: false };
+
+function cdPad(n) {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * Performs a single flip for one countdown unit.
+ *  1. Immediately update the bottom static panel (new value).
+ *  2. Create a "fold-out" panel (old value) that animates away.
+ *  3. Create a "fold-in" panel (new value) that animates in.
+ *  4. After the animation: clean up panels, update the top static panel.
+ */
+function flipCountdownUnit(unit, oldVal, newVal) {
+  if (cdFlipping[unit]) return; // skip if already mid-animation
+
+  const card = document.getElementById('fc-' + unit);
+  if (!card) return;
+
+  const topEl = card.querySelector('.flip-top .cd-num');
+  const botEl = card.querySelector('.flip-bot .cd-num');
+  const newStr = cdPad(newVal);
+  const oldStr = cdPad(oldVal);
+
+  cdFlipping[unit] = true;
+  botEl.textContent = newStr;
+
+  const foldOut = document.createElement('div');
+  foldOut.className = 'flip-top-panel';
+  foldOut.innerHTML = `<span class="cd-num">${oldStr}</span>`;
+
+  const foldIn = document.createElement('div');
+  foldIn.className = 'flip-bot-panel';
+  foldIn.innerHTML = `<span class="cd-num">${newStr}</span>`;
+
+  card.append(foldOut, foldIn);
+
+  // Skip the flip transition entirely if the user prefers reduced motion.
+  if (prefersReducedMotion) {
+    topEl.textContent = newStr;
+    foldOut.remove();
+    foldIn.remove();
+    cdFlipping[unit] = false;
+    return;
+  }
+
+  // Force reflow so the CSS animation reliably triggers.
+  void foldOut.offsetHeight;
+  card.classList.add('is-flipping');
+
+  const TOTAL_MS = 480; // 300ms fold-out + 180ms delay + 300ms fold-in
+  setTimeout(() => {
+    topEl.textContent = newStr;
+    foldOut.remove();
+    foldIn.remove();
+    card.classList.remove('is-flipping');
+    cdFlipping[unit] = false;
+  }, TOTAL_MS);
+}
+
+function startCountdown() {
+  if (startCountdown._running) return; // prevent double-start
+  startCountdown._running = true;
+
+  const grid = document.getElementById('countdownGrid');
+  if (!grid) return;
+
+  const arrivedEl = document.createElement('p');
+  arrivedEl.className = 'countdown-arrived';
+  arrivedEl.textContent = 'Our Special Day Has Arrived ❤️';
+
+  let intervalId;
+
+  function update() {
+    const diff = TARGET_DATE.getTime() - Date.now();
+
+    if (diff <= 0) {
+      grid.style.display = 'none';
+      if (!arrivedEl.parentNode) grid.parentNode.appendChild(arrivedEl);
+      clearInterval(intervalId);
+      return;
+    }
+
+    const units = [
+      { key: 'days', val: Math.floor(diff / 86400000) },
+      { key: 'hours', val: Math.floor((diff % 86400000) / 3600000) },
+      { key: 'mins', val: Math.floor((diff % 3600000) / 60000) },
+      { key: 'secs', val: Math.floor((diff % 60000) / 1000) }
+    ];
+
+    units.forEach(({ key, val }) => {
+      if (val === cdCurrent[key]) return;
+      const old = cdCurrent[key];
+      cdCurrent[key] = val;
+
+      if (old === -1) {
+        // First run: set static values directly, no animation needed.
+        const card = document.getElementById('fc-' + key);
+        if (card) {
+          card.querySelector('.flip-top .cd-num').textContent = cdPad(val);
+          card.querySelector('.flip-bot .cd-num').textContent = cdPad(val);
+        }
+      } else {
+        flipCountdownUnit(key, old, val);
+      }
+    });
+  }
+
+  update(); // immediate first tick
+  intervalId = setInterval(update, 1000);
+}
+
+/* ══════════════════════════════════════════════════════
+   6. SCRATCH CARD
+══════════════════════════════════════════════════════ */
+function initScratch() {
+  const canvas = document.getElementById('scratchCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Gold foil overlay
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#7a5200');
+  grad.addColorStop(0.3, '#C8A96E');
+  grad.addColorStop(0.5, '#9A7240');
+  grad.addColorStop(0.7, '#C8A96E');
+  grad.addColorStop(1, '#7a5200');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Texture dots
+  ctx.fillStyle = 'rgba(200,169,110,0.25)';
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.arc(Math.random() * W, Math.random() * H, 8 + Math.random() * 18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Instruction text
+  ctx.fillStyle = '#3B2010';
+  ctx.font = 'bold 13px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('✦ SCRATCH HERE ✦', W / 2, 42);
+  ctx.font = '11px serif';
+  ctx.fillText('Reveal the auspicious date', W / 2, 64);
+  ctx.font = '10px serif';
+  ctx.fillStyle = 'rgba(59,32,16,0.7)';
+  ctx.fillText('(Touch & drag to scratch)', W / 2, 88);
+
+  ctx.globalCompositeOperation = 'destination-out';
+
+  let isDrawing = false;
+  let scratched = 0;
+  let revealed = false;
+  const total = W * H;
+  const REVEAL_THRESHOLD = 0.55;
+  const scratchedMsg = document.getElementById('scratchedMsg');
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const scaleX = W / r.width;
+    const scaleY = H / r.height;
+    const point = e.touches ? e.touches[0] : e;
+    return {
+      x: (point.clientX - r.left) * scaleX,
+      y: (point.clientY - r.top) * scaleY
+    };
+  }
+
+  function scratch(e) {
+    if (!isDrawing || revealed) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 26, 0, Math.PI * 2);
+    ctx.fill();
+    scratched += 1800;
+
+    if (scratched > total * REVEAL_THRESHOLD) {
+      revealed = true;
+      setTimeout(() => {
+        canvas.style.transition = 'opacity 0.6s ease';
+        canvas.style.opacity = '0';
+        setTimeout(() => { canvas.style.display = 'none'; }, 650);
+      }, 100);
+      if (scratchedMsg) scratchedMsg.style.display = 'block';
+    }
+  }
+
+  function startScratch(e) { isDrawing = true; scratch(e); }
+  function stopScratch() { isDrawing = false; }
+
+  canvas.addEventListener('mousedown', startScratch);
+  canvas.addEventListener('mousemove', scratch);
+  canvas.addEventListener('mouseup', stopScratch);
+  canvas.addEventListener('mouseleave', stopScratch);
+  canvas.addEventListener('touchstart', startScratch, { passive: false });
+  canvas.addEventListener('touchmove', scratch, { passive: false });
+  canvas.addEventListener('touchend', stopScratch);
+}
+
+/* ══════════════════════════════════════════════════════
+   7. SCROLL FADE-IN
+══════════════════════════════════════════════════════ */
+function observeFadeIns() {
+  const targets = document.querySelectorAll('.fade-in');
+  if (!('IntersectionObserver' in window)) {
+    targets.forEach((el) => el.classList.add('visible'));
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target); // no need to keep watching once shown
+      }
+    });
+  }, { threshold: 0.12 });
+  targets.forEach((el) => observer.observe(el));
+}
+
+/* ══════════════════════════════════════════════════════
+   8. MUSIC TOGGLE
+══════════════════════════════════════════════════════ */
+(function setupMusicPlayer() {
+  const music = document.getElementById('bgMusic');
+  const btn = document.getElementById('musicBtn');
+  if (!music || !btn) return;
+
+  let playing = false;
+
+  function setPlayingUI(isPlaying) {
+    playing = isPlaying;
+    btn.textContent = isPlaying ? '⏸' : '🎵';
+    btn.setAttribute('aria-label', isPlaying ? 'Pause background music' : 'Play background music');
+    btn.setAttribute('aria-pressed', String(isPlaying));
+  }
+
+  function toggleMusic() {
+    if (playing) {
+      music.pause();
+      return;
+    }
+    if (!music.src) music.src = MUSIC_URL;
+    music.play().catch(() => {});
+  }
+
+  btn.addEventListener('click', toggleMusic);
+  music.addEventListener('play', () => setPlayingUI(true));
+  music.addEventListener('pause', () => setPlayingUI(false));
 })();
