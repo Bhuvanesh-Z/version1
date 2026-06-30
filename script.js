@@ -324,75 +324,70 @@ function spawnPetals() {
 }
 
 /* ══════════════════════════════════════════════════════
-   5. COUNTDOWN — stable, flicker-free flip animation
+   5. COUNTDOWN — rolling odometer-style digit scroller
    Architecture:
    • One setInterval at exactly 1000ms drives the time math.
-   • DOM panels are added/removed only when a value changes.
-   • requestAnimationFrame is intentionally NOT used here —
-     a steady 1s interval avoids drift in displayed values.
+   • Each unit (days/hours/mins/secs) is a row of digit reels,
+     each reel a vertical strip of 0–9 inside a fixed-height
+     window. Updating a digit just changes the strip's
+     translateY — the CSS transition animates the roll.
+   • Reels are built once; only their transform updates per tick.
 ══════════════════════════════════════════════════════ */
 const TARGET_DATE = new Date('2026-07-12T18:00:00');
 
-// Track currently displayed values to avoid unnecessary flips.
-const cdCurrent = { days: -1, hours: -1, mins: -1, secs: -1 };
-const cdFlipping = { days: false, hours: false, mins: false, secs: false };
+// How many digit reels each unit shows (days gets 3 for safety
+// on long countdowns, the rest are always 2 digits).
+const ODOMETER_DIGITS = { days: 3, hours: 2, mins: 2, secs: 2 };
 
-function cdPad(n) {
-  return String(n).padStart(2, '0');
+// Track currently displayed values to avoid redundant DOM writes.
+const cdCurrent = { days: -1, hours: -1, mins: -1, secs: -1 };
+
+/**
+ * Builds the digit-reel DOM for one odometer unit, once.
+ * Each reel contains a .digit-strip with digits 0–9 stacked;
+ * the strip's transform is what drives the rolling animation.
+ */
+function buildOdometer(unit) {
+  const container = document.getElementById('od-' + unit);
+  if (!container) return;
+  const digitCount = ODOMETER_DIGITS[unit];
+
+  container.innerHTML = '';
+  for (let i = 0; i < digitCount; i++) {
+    const reel = document.createElement('div');
+    reel.className = 'digit-reel';
+
+    const strip = document.createElement('div');
+    strip.className = 'digit-strip';
+    for (let d = 0; d <= 9; d++) {
+      const digitEl = document.createElement('div');
+      digitEl.className = 'digit';
+      digitEl.textContent = String(d);
+      strip.appendChild(digitEl);
+    }
+
+    reel.appendChild(strip);
+    container.appendChild(reel);
+  }
 }
 
 /**
- * Performs a single flip for one countdown unit.
- *  1. Immediately update the bottom static panel (new value).
- *  2. Create a "fold-out" panel (old value) that animates away.
- *  3. Create a "fold-in" panel (new value) that animates in.
- *  4. After the animation: clean up panels, update the top static panel.
+ * Updates one odometer unit to a new numeric value by moving
+ * each digit reel's strip to the matching position. Each strip
+ * is 10 stacked digits tall, so shifting by `digit * 10%` of the
+ * strip's own height moves it up by exactly one digit's worth.
  */
-function flipCountdownUnit(unit, oldVal, newVal) {
-  if (cdFlipping[unit]) return; // skip if already mid-animation
+function setOdometerValue(unit, value) {
+  const container = document.getElementById('od-' + unit);
+  if (!container) return;
+  const digitCount = ODOMETER_DIGITS[unit];
+  const str = String(value).padStart(digitCount, '0');
 
-  const card = document.getElementById('fc-' + unit);
-  if (!card) return;
-
-  const topEl = card.querySelector('.flip-top .cd-num');
-  const botEl = card.querySelector('.flip-bot .cd-num');
-  const newStr = cdPad(newVal);
-  const oldStr = cdPad(oldVal);
-
-  cdFlipping[unit] = true;
-  botEl.textContent = newStr;
-
-  const foldOut = document.createElement('div');
-  foldOut.className = 'flip-top-panel';
-  foldOut.innerHTML = `<span class="cd-num">${oldStr}</span>`;
-
-  const foldIn = document.createElement('div');
-  foldIn.className = 'flip-bot-panel';
-  foldIn.innerHTML = `<span class="cd-num">${newStr}</span>`;
-
-  card.append(foldOut, foldIn);
-
-  // Skip the flip transition entirely if the user prefers reduced motion.
-  if (prefersReducedMotion) {
-    topEl.textContent = newStr;
-    foldOut.remove();
-    foldIn.remove();
-    cdFlipping[unit] = false;
-    return;
-  }
-
-  // Force reflow so the CSS animation reliably triggers.
-  void foldOut.offsetHeight;
-  card.classList.add('is-flipping');
-
-  const TOTAL_MS = 480; // 300ms fold-out + 180ms delay + 300ms fold-in
-  setTimeout(() => {
-    topEl.textContent = newStr;
-    foldOut.remove();
-    foldIn.remove();
-    card.classList.remove('is-flipping');
-    cdFlipping[unit] = false;
-  }, TOTAL_MS);
+  const strips = container.querySelectorAll('.digit-strip');
+  strips.forEach((strip, i) => {
+    const digit = Number(str[i]);
+    strip.style.transform = `translateY(-${digit * 10}%)`;
+  });
 }
 
 function startCountdown() {
@@ -401,6 +396,9 @@ function startCountdown() {
 
   const grid = document.getElementById('countdownGrid');
   if (!grid) return;
+
+  // Build all four odometers once.
+  Object.keys(ODOMETER_DIGITS).forEach(buildOdometer);
 
   const arrivedEl = document.createElement('p');
   arrivedEl.className = 'countdown-arrived';
@@ -427,23 +425,12 @@ function startCountdown() {
 
     units.forEach(({ key, val }) => {
       if (val === cdCurrent[key]) return;
-      const old = cdCurrent[key];
       cdCurrent[key] = val;
-
-      if (old === -1) {
-        // First run: set static values directly, no animation needed.
-        const card = document.getElementById('fc-' + key);
-        if (card) {
-          card.querySelector('.flip-top .cd-num').textContent = cdPad(val);
-          card.querySelector('.flip-bot .cd-num').textContent = cdPad(val);
-        }
-      } else {
-        flipCountdownUnit(key, old, val);
-      }
+      setOdometerValue(key, val);
     });
   }
 
-  update(); // immediate first tick
+  update(); // immediate first tick, sets initial reel positions
   intervalId = setInterval(update, 1000);
 }
 
